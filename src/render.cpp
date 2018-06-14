@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cmath>
 #include <immintrin.h>
+#include <sstream>
 
 //#define CHRONO
 
@@ -149,21 +150,18 @@ void render(std::byte* buffer,
 }
 
 void iteration_to_color(std::byte* buffer,
-												std::vector<rgb8_t>& hl,
-												std::vector<int>& nb_iter,
-												int width, int height, unsigned int stride, int n_iterations,
-												unsigned int thread_no, unsigned int nb_thread,
+												const std::vector<rgb8_t>& hl,
+												const std::vector<int>& nb_iter,
+												const int width, const int height, const unsigned int stride,
+												const int y_start, const int y_end,
 												const int aligned_width)
 {
-	for (int y = thread_no; y < (height+1)/2; y+= nb_thread)
+	for (int y = y_start; y < y_end; y++)
 	{
     for (int x = 0; x < width; x++)
-	  { 
+	  {
 			rgb8_t* lineptr = reinterpret_cast<rgb8_t*>(buffer + stride * y);
-			if (nb_iter[y * aligned_width + x] == n_iterations)
-			  lineptr[x] = {0, 0, 0};
-			else
-		    lineptr[x] = hl[nb_iter[y * aligned_width + x]];
+		  lineptr[x] = hl[nb_iter[y * aligned_width + x]];
 		}
 		memcpy(buffer + stride * (height - y - 1), buffer + y * stride, stride);
 	}
@@ -175,7 +173,6 @@ void render_mt(std::byte* buffer,
                std::ptrdiff_t stride,
                int n_iterations)
 {
-	//std::cout << stride << sizeof(rgb8_t) * width << std::endl;
 	auto aligned_width = (width % 8 == 0) ? width : width / 8 * 8 + 8;
 	std::vector<int> nb_iter;
 	nb_iter.resize(height * aligned_width);
@@ -211,20 +208,22 @@ void render_mt(std::byte* buffer,
 	hl.resize(n_iterations+1);
 
 	unsigned int sum = 0;
-	for (int it = 1; it <= n_iterations; it++) {
+	for (int it = 1; it < n_iterations; it++) {
 		for (unsigned int t = 0; t < hists.size(); t++)
 			sum += hists[t][it];
 		hl[it] = heat_lut((float) sum  / total);
 	}
+	hl[n_iterations] = {0, 0, 0};
 
 #ifdef CHRONO
 	std::cout << "HLO = " << std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count() << " ms" << std::endl;
 #endif
 	
+	const int nb_line_per_thread = std::ceil(height / 2.0 / nb_thread);
 	std::vector<std::thread> threads;
 	for (unsigned int n = 0; n < nb_thread; n++) {
-		//iteration_to_color(buffer, std::ref(hl), std::ref(nb_iter), width, height, stride, n_iterations, n, nb_thread, aligned_width);
-		threads.emplace_back(iteration_to_color, buffer, std::ref(hl), std::ref(nb_iter), width, height, stride, n_iterations, n, nb_thread, aligned_width);
+		const int y_end = (n == nb_thread - 1) ? height/2 : (n+1)*nb_line_per_thread;
+		threads.emplace_back(iteration_to_color, buffer, std::ref(hl), std::ref(nb_iter), width, height, stride, n*nb_line_per_thread, y_end, aligned_width);
 	}
 	for (auto& t : threads)
 		t.join();
