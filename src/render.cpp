@@ -68,7 +68,6 @@ void render_simd_mt(const unsigned int width,
 	{
 		__m256 y_pixel = _mm256_set1_ps(y);
 		__m256 y_mb = _mm256_fmadd_ps(y_pixel, yscale, ymin);
-		//__m256 y_mb = _mm256_add_ps(_mm256_mul_ps(y_pixel, yscale), ymin); // y0
 		for (unsigned int x = 0; x < width; x+=8)
 		{
 			__m256 x_pixel = _mm256_add_ps(_mm256_set1_ps(x), vec_01234567);
@@ -82,6 +81,8 @@ void render_simd_mt(const unsigned int width,
 				__m256 zi2 = _mm256_mul_ps(zi, zi);
 				__m256 norm2 = _mm256_add_ps(zr2, zi2);
 				__m256 mask = _mm256_cmp_ps(norm2, threshold, _CMP_LT_OS);
+
+				// Increase iteration counter of the pixels that hasn't diverged
 				vec_iter = _mm256_add_ps(_mm256_and_ps(mask, one), vec_iter);
 				if (_mm256_testz_ps(mask, _mm256_set1_ps(-1))) // Every pixel has diverged
 					break;
@@ -91,13 +92,7 @@ void render_simd_mt(const unsigned int width,
 				zi = _mm256_add_ps(_mm256_add_ps(zrzi, zrzi), y_mb);
 			}
 			__m256i its_simd = _mm256_cvtps_epi32(vec_iter);
-			/*unsigned int* its = (unsigned int*) &its_simd;
-			for (int i = 0; i < 8 && x + i < width; i++) {
-				unsigned int it = its[i];
-				//std::cout << std::to_string(it) << std::endl;
-				nb_iter[y * width + x + i] = it;//iteration;
-				hist[it]+=2;//++;
-			}*/
+
 			auto offset = y * aligned_width + x;
 			_mm256_storeu_si256((__m256i*)(nb_iter.data() + offset), its_simd);
 			
@@ -131,7 +126,6 @@ void render(std::byte* buffer,
 	int sum = 0;
 	for (int i = 1; i <= n_iterations; i++) {
 		sum += hist[i];
-		//std::cout << i << ": " << hist[i] << "; sum = " << sum << std::endl;
 		hl[i] = heat_lut(sum / total);
 	}
   
