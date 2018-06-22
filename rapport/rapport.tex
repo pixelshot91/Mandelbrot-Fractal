@@ -1,0 +1,43 @@
+\documentclass{article}
+\usepackage{chngpage}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2cm]{geometry}
+\usepackage{tikz}
+
+\title{Assignment 1: Mandelbrot Fractal}
+\author{Julien GAUTIER}
+
+\begin{document}
+\maketitle
+
+\section{La SIO}
+La SIO (ou Symetric Image Optimization) est la plus simple des optimisations. Il suffit de remarquer que la fractal
+de Mandelbrot est symétrique selon l’axe des réels. Il suffit calculer la motié supérieure de l’image puis de la
+dupliquer sur la partie inférieure en la retournant verticalement. En pratique, la duplication de l’image est effectuée
+grâce à un appel à memcpy par ligne. Le speed-up attendu est d’environ 2 et le speed-up mesuré est de 1.9.
+
+\section{Mettre en cache la Heat LUT}
+Dansl’implémentationnaive, la fonction \texttt{heat\_lut} est appelée pour chaque pixel. Mais il n’existe que $n\_iterations+1$
+couleurs possibles. On peut donc facilement les mettre en cache et faire un simple look-up pour chaque pixel. Pour
+$n\_iterations = 100$, il nous faut seulement 400 octets de cache, ce qui rentre aisément dans le cache L1.
+
+\section{L’optimisation SIMD}
+Avec AVX2 on peut effectuer des calculs en parallel sur 256 bits, ce qui représentent 8 floats de 32 bits. Soit Z le
+nombre complexe associé au pixel à calculer. J’ai calculé sa norme au carré à l’aide des instructions \texttt{\_mm256\_mul\_ps}
+et \texttt{\_mm256\_add\_ps}. Je teste si cette valeur est supérieure au \texttt{threshold} (égale à 4) avec \texttt{\_mm256\_cmp\_ps}. J’obtiens
+un vecteur dont la case vaut 0 si $||z||^2 \geq 4$ et -1 si $||z||^2 < 4$. J’utilise \texttt{\_mm256\_and\_ps} pour remplacer les -1 en
+1. J’incrémente \texttt{v\_iter} (mon vecteur comptant le nombre d’itérations) à l’aide du masque. De cette manière, seul
+les pixels dont la norme est inférieure à 4 sont incrementés. Si toutes les normes sont supérieures à 4, il est inutile
+de continuer. Si le \texttt{mask} est égal au vecteur ne comportant que des 1, on sort de la boucle. On extrait ensuite les
+valeurs des itérations à l’aide de \texttt{\_mm256\_cvtps\_epi32} que l’on stocke dans l’histogramme. Le speed-up attendu est
+d’environ 8 car on traite 8 pixels en simultané. Le speed-up obtenu est de 5.
+
+\section{Le parallélisme multi-thread}
+Soit N le nombre de ceurs de la machine (obtenue grâce à \texttt{std::hardware\_concurrency}). On pourrais diviser
+l’image en N bandes et assigner chaque threads au calcul d’une de ces bandes. Mais cette méthode n’est pas
+optimale car le thread qui doit calculer la bande supérieure de l’image terminera bien avant les autres. En effet,
+beaucoup des pixels du haut de l’image divergent rapidement. Il est plus efficace d’assigner au thread numero $i$
+toutes les lignes numero $i + kN$. Ainsi le travil est plus équitablement répartie entre les threads. Sur une machine
+possédant 2 coeurs avec Hyperthreading, donc 4 coeurs logiques, le speed-up attendu est d’environ 4. Le speed-up
+obtenu est que de $3.2$. Avec 2 threads, on obtient bien un speed-up de 2,0.
+\end{document}
