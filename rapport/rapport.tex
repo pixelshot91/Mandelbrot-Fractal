@@ -17,7 +17,7 @@ dupliquer sur la partie inférieure en la retournant verticalement. En pratique,
 grâce à un appel à memcpy par ligne. Le speed-up attendu est d’environ 2 et le speed-up mesuré est de 1.9.
 
 \section{Mettre en cache la Heat LUT}
-Dansl’implémentationnaive, la fonction \texttt{heat\_lut} est appelée pour chaque pixel. Mais il n’existe que $n\_iterations+1$
+Dans l’implémentation naive, la fonction \texttt{heat\_lut} est appelée pour chaque pixel. Mais il n’existe que $n\_iterations+1$
 couleurs possibles. On peut donc facilement les mettre en cache et faire un simple look-up pour chaque pixel. Pour
 $n\_iterations = 100$, il nous faut seulement 400 octets de cache, ce qui rentre aisément dans le cache L1.
 
@@ -39,5 +39,5 @@ optimale car le thread qui doit calculer la bande supérieure de l’image termi
 beaucoup des pixels du haut de l’image divergent rapidement. Il est plus efficace d’assigner au thread numero $i$
 toutes les lignes numero $i + kN$. Ainsi le travil est plus équitablement répartie entre les threads. Sur une machine
 possédant 2 coeurs avec Hyperthreading, donc 4 coeurs logiques, le speed-up attendu est d’environ 4. Le speed-up
-obtenu est que de $3.2$. Avec 2 threads, on obtient bien un speed-up de 2,0.
+obtenu est que de 3,2. Avec 2 threads, on obtient bien un speed-up de 2,0.
 \end{document}
